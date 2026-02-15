@@ -13,7 +13,12 @@ producer = KafkaProducer(
 )
 
 # load customers
-customers = pd.read_csv("../data/customers.csv")
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+customer_path = os.path.join(BASE_DIR, "data", "customers.csv")
+
+customers = pd.read_csv(customer_path)
 
 channels = ["UPI", "POS", "ATM", "AUTODEBIT" , "NETBANKING"]
 categories = ["GROCERY","FOOD","SHOPPING","UTILITY","TRAVEL","LOANAPP"]

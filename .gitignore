@@ -1,0 +1,22 @@
+# Virtual environment
+.venv/
+
+# Redis dump
+dump.rdb
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Data files (large CSVs — keep structure, not data)
+data/transactions_raw.csv
+data/features_dataset.csv
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
