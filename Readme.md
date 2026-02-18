@@ -1,6 +1,6 @@
 # run these files in different terminals
 
-1. termial 1 
+1. termial 1  -OPTIONAL
 cd C:\kafka
 .\bin\windows\zookeeper-server-start.bat .\config\zookeeper.properties
 
@@ -8,8 +8,12 @@ cd C:\kafka
 cd C:\kafka
 .\bin\windows\kafka-server-start.bat .\config\server.properties
 
+# Start Redis server	
+C:\Redis\redis-server.exe
+
 # only if topic is not created 
-3. terminal 3cd C:\kafka
+3. terminal 3 - OPTIONAL
+cd C:\kafka
 .\bin\windows\kafka-topics.bat --create --topic transactions --bootstrap-server 127.0.0.1:9092 --partitions 1 --replication-factor 1
 
 4.terminal 3
@@ -22,11 +26,10 @@ python kafka\transactions_consumer.py
 
 6.terminal 5
 cd c:\Users\harsh\OneDrive\Desktop\Pythonnn\Pre-Delinquecy
-python features\customer_features.py    
-
-7.terminal 6
-cd c:\Users\harsh\OneDrive\Desktop\Pythonnn\Pre-Delinquecy
 python features\feature_engine.py    
+
+8. terminal 7
+python risk\risk_engine.py
 
 # to check redis is updating its data
 cd C:\Users\harsh\OneDrive\Documents\Redis

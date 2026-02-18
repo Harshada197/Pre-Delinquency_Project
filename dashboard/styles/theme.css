@@ -10,6 +10,38 @@
 .stApp {
     background-color: #F0F2F5;
     font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+    color: #0f172a;
+    font-size: 1rem;
+}
+
+/* ── All paragraph and span text — DARK for readability ── */
+.stApp p,
+.stApp span,
+.stApp div,
+.stApp label {
+    color: #0f172a;
+}
+
+/* ── Ensure dataframe / table text is always dark ── */
+.stDataFrame td,
+.stDataFrame th,
+div[data-testid="stDataFrame"] td,
+div[data-testid="stDataFrame"] th {
+    color: #0f172a !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.88rem !important;
+}
+
+/* ── Caption text — medium contrast ── */
+.stCaption,
+.stCaption p {
+    color: #475569 !important;
+}
+
+/* ── Info/Warning/Success alerts — dark text ── */
+.stAlert p,
+.stAlert span {
+    color: #1e293b !important;
 }
 
 /* ── Hide Streamlit Branding ── */
@@ -41,12 +73,37 @@ section[data-testid="stSidebar"] .stMarkdown li,
 section[data-testid="stSidebar"] .stMarkdown span,
 section[data-testid="stSidebar"] .stMarkdown a,
 section[data-testid="stSidebar"] label {
-    color: #A8B8CC !important;
+    color: #E8EDF3 !important;
+}
+
+section[data-testid="stSidebar"] .stMarkdown div {
+    color: #E8EDF3 !important;
+}
+
+/* Sidebar navigation links — ALWAYS visible white */
+section[data-testid="stSidebar"] a,
+section[data-testid="stSidebar"] a span,
+section[data-testid="stSidebar"] .stPageLink a,
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a,
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] span,
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li,
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] div,
+section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] a,
+section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] span {
+    color: #FFFFFF !important;
+    font-weight: 500 !important;
+    font-size: 0.95rem !important;
+    opacity: 1 !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover span,
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover {
+    color: #6CB4EE !important;
 }
 
 section[data-testid="stSidebar"] hr {
-    border-color: rgba(255, 255, 255, 0.06);
-    margin: 16px 0;
+    border-color: rgba(255, 255, 255, 0.08);
+    margin: 18px 0;
 }
 
 /* ── Sidebar Logo Area ── */
@@ -61,7 +118,7 @@ section[data-testid="stSidebar"] hr {
 
 .sidebar-logo-text {
     font-family: 'Inter', sans-serif;
-    font-size: 1.15rem;
+    font-size: 1.25rem;
     font-weight: 800;
     letter-spacing: 3px;
     color: #FFFFFF !important;
@@ -70,7 +127,7 @@ section[data-testid="stSidebar"] hr {
 }
 
 .sidebar-logo-sub {
-    font-size: 0.65rem;
+    font-size: 0.8rem;
     color: #5A9FD4 !important;
     letter-spacing: 1.5px;
     text-transform: uppercase;
@@ -84,7 +141,7 @@ section[data-testid="stSidebar"] hr {
     align-items: center;
     gap: 8px;
     padding: 6px 0;
-    font-size: 0.82rem;
+    font-size: 0.92rem;
 }
 
 .status-dot-green {
@@ -108,7 +165,7 @@ section[data-testid="stSidebar"] hr {
 h1 {
     color: #0B1F3A !important;
     font-weight: 700 !important;
-    font-size: 1.6rem !important;
+    font-size: 1.8rem !important;
     font-family: 'Inter', sans-serif !important;
     letter-spacing: -0.02em;
     padding-bottom: 10px;
@@ -119,7 +176,7 @@ h1 {
 h2 {
     color: #1F4E79 !important;
     font-weight: 600 !important;
-    font-size: 0.85rem !important;
+    font-size: 1.0rem !important;
     font-family: 'Inter', sans-serif !important;
     text-transform: uppercase;
     letter-spacing: 1.2px;
@@ -130,7 +187,7 @@ h2 {
 h3 {
     color: #2C3E50 !important;
     font-weight: 600 !important;
-    font-size: 0.95rem !important;
+    font-size: 1.1rem !important;
     font-family: 'Inter', sans-serif !important;
 }
 
@@ -187,9 +244,9 @@ h3 {
 
 .eq-header-subtitle {
     font-family: 'Inter', sans-serif;
-    font-size: 0.78rem;
-    font-weight: 400;
-    color: #7BA3C9;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: #CDDCEB;
     letter-spacing: 0.8px;
     margin: 8px 0 0 0;
     position: relative;
@@ -221,10 +278,10 @@ div[data-testid="stMetric"]:hover {
 }
 
 div[data-testid="stMetric"] label {
-    color: #5A6C7E !important;
+    color: #3D4F63 !important;
     font-family: 'Inter', sans-serif !important;
     font-weight: 600;
-    font-size: 0.7rem !important;
+    font-size: 0.85rem !important;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -232,7 +289,7 @@ div[data-testid="stMetric"] label {
 div[data-testid="stMetric"] [data-testid="stMetricValue"] {
     color: #0B1F3A !important;
     font-family: 'Inter', sans-serif !important;
-    font-size: 1.8rem !important;
+    font-size: 2.0rem !important;
     font-weight: 700;
 }
 
@@ -271,7 +328,7 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 
 .eq-card-header {
     font-family: 'Inter', sans-serif;
-    font-size: 0.7rem;
+    font-size: 0.88rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.2px;
@@ -283,7 +340,7 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 
 .eq-stat-value {
     font-family: 'Inter', sans-serif;
-    font-size: 1.7rem;
+    font-size: 1.9rem;
     font-weight: 700;
     color: #0B1F3A;
     line-height: 1.2;
@@ -291,8 +348,8 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 
 .eq-stat-label {
     font-family: 'Inter', sans-serif;
-    font-size: 0.68rem;
-    color: #7F8C9B;
+    font-size: 0.82rem;
+    color: #5A6C7E;
     text-transform: uppercase;
     letter-spacing: 0.8px;
     margin-top: 4px;
@@ -331,15 +388,15 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 
 .eq-feature-title {
     font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
+    font-size: 1.05rem;
     font-weight: 700;
     color: #0B1F3A;
     margin-bottom: 8px;
 }
 
 .eq-feature-desc {
-    font-size: 0.85rem;
-    color: #5A6C7E;
+    font-size: 0.92rem;
+    color: #3D4F63;
     line-height: 1.6;
     margin: 0;
 }
@@ -348,11 +405,11 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 .badge-high {
     background: linear-gradient(135deg, #E74C3C, #C0392B);
     color: #FFFFFF;
-    padding: 5px 16px;
+    padding: 6px 18px;
     border-radius: 4px;
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     letter-spacing: 0.8px;
     display: inline-block;
     text-transform: uppercase;
@@ -362,11 +419,11 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 .badge-medium {
     background: linear-gradient(135deg, #F39C12, #E67E22);
     color: #FFFFFF;
-    padding: 5px 16px;
+    padding: 6px 18px;
     border-radius: 4px;
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     letter-spacing: 0.8px;
     display: inline-block;
     text-transform: uppercase;
@@ -376,11 +433,11 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 .badge-low {
     background: linear-gradient(135deg, #2ECC71, #27AE60);
     color: #FFFFFF;
-    padding: 5px 16px;
+    padding: 6px 18px;
     border-radius: 4px;
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     letter-spacing: 0.8px;
     display: inline-block;
     text-transform: uppercase;
@@ -390,11 +447,11 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 .badge-unknown {
     background: #95A5A6;
     color: #FFFFFF;
-    padding: 5px 16px;
+    padding: 6px 18px;
     border-radius: 4px;
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     letter-spacing: 0.8px;
     display: inline-block;
     text-transform: uppercase;
@@ -404,11 +461,11 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 .badge-high-lg {
     background: linear-gradient(135deg, #E74C3C, #C0392B);
     color: #FFFFFF;
-    padding: 8px 28px;
+    padding: 10px 32px;
     border-radius: 6px;
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     letter-spacing: 1.2px;
     display: inline-block;
     text-transform: uppercase;
@@ -418,11 +475,11 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 .badge-medium-lg {
     background: linear-gradient(135deg, #F39C12, #E67E22);
     color: #FFFFFF;
-    padding: 8px 28px;
+    padding: 10px 32px;
     border-radius: 6px;
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     letter-spacing: 1.2px;
     display: inline-block;
     text-transform: uppercase;
@@ -432,11 +489,11 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
 .badge-low-lg {
     background: linear-gradient(135deg, #2ECC71, #27AE60);
     color: #FFFFFF;
-    padding: 8px 28px;
+    padding: 10px 32px;
     border-radius: 6px;
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     letter-spacing: 1.2px;
     display: inline-block;
     text-transform: uppercase;
@@ -448,57 +505,57 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 0;
+    padding: 14px 0;
     border-bottom: 1px solid #F0F2F5;
-    font-size: 0.88rem;
+    font-size: 0.95rem;
 }
 
 .eq-detail-label {
-    color: #5A6C7E;
+    color: #3D4F63;
     font-weight: 500;
     font-family: 'Inter', sans-serif;
-    font-size: 0.82rem;
+    font-size: 0.92rem;
 }
 
 .eq-detail-value {
     color: #0B1F3A;
     font-weight: 600;
     font-family: 'Inter', sans-serif;
-    font-size: 0.88rem;
+    font-size: 0.95rem;
 }
 
 /* ── Risk Factor Items ── */
 .eq-risk-factor {
     background: #FFFBF0;
-    border-left: 3px solid #F39C12;
-    padding: 12px 18px;
+    border-left: 4px solid #F39C12;
+    padding: 14px 20px;
     margin-bottom: 8px;
     border-radius: 0 8px 8px 0;
-    font-size: 0.86rem;
-    color: #2C3E50;
+    font-size: 0.95rem;
+    color: #1A2332;
     font-family: 'Inter', sans-serif;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
 .eq-risk-factor-ok {
     background: #F0FFF4;
-    border-left: 3px solid #2ECC71;
-    padding: 12px 18px;
+    border-left: 4px solid #2ECC71;
+    padding: 14px 20px;
     margin-bottom: 8px;
     border-radius: 0 8px 8px 0;
-    font-size: 0.86rem;
-    color: #2C3E50;
+    font-size: 0.95rem;
+    color: #1A2332;
     font-family: 'Inter', sans-serif;
 }
 
 .eq-risk-factor-critical {
     background: #FFF5F5;
-    border-left: 3px solid #E74C3C;
-    padding: 12px 18px;
+    border-left: 4px solid #E74C3C;
+    padding: 14px 20px;
     margin-bottom: 8px;
     border-radius: 0 8px 8px 0;
-    font-size: 0.86rem;
-    color: #2C3E50;
+    font-size: 0.95rem;
+    color: #1A2332;
     font-family: 'Inter', sans-serif;
 }
 
@@ -515,9 +572,9 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
     color: #FFFFFF;
     border: none;
     border-radius: 8px;
-    padding: 10px 28px;
+    padding: 12px 28px;
     font-weight: 600;
-    font-size: 0.82rem;
+    font-size: 0.92rem;
     letter-spacing: 0.3px;
     transition: all 0.3s ease;
     box-shadow: 0 2px 8px rgba(31, 78, 121, 0.2);
@@ -540,8 +597,8 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
     border: 1px solid #D1D9E6;
     border-radius: 8px;
     padding: 10px 16px;
-    font-size: 0.88rem;
-    color: #2C3E50;
+    font-size: 0.95rem;
+    color: #1A2332;
     transition: all 0.2s ease;
 }
 
@@ -556,8 +613,8 @@ div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
     background: #FFFFFF;
     border: 1px solid #D1D9E6;
     border-radius: 8px;
-    font-size: 0.86rem;
-    color: #2C3E50;
+    font-size: 0.95rem;
+    color: #1A2332;
     line-height: 1.7;
 }
 
@@ -580,7 +637,7 @@ div[data-testid="stDataFrame"] {
 .stAlert {
     border-radius: 8px;
     font-family: 'Inter', sans-serif;
-    font-size: 0.86rem;
+    font-size: 0.95rem;
 }
 
 /* ── Expander ── */
@@ -590,7 +647,7 @@ div[data-testid="stDataFrame"] {
     border-radius: 8px;
     font-weight: 600;
     color: #1F4E79;
-    font-size: 0.88rem;
+    font-size: 0.95rem;
 }
 
 /* ── Tabs ── */
@@ -601,7 +658,7 @@ div[data-testid="stDataFrame"] {
 .stTabs [data-baseweb="tab"] {
     font-family: 'Inter', sans-serif;
     font-weight: 600;
-    font-size: 0.82rem;
+    font-size: 0.92rem;
     letter-spacing: 0.5px;
 }
 
@@ -635,7 +692,7 @@ hr {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: #2ECC71;
     text-transform: uppercase;
@@ -664,4 +721,53 @@ hr {
     100% {
         box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
     }
+}
+
+/* ── LIVE Tag (used by Python render_live_tag) ── */
+.eq-live-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #22C55E;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-family: 'Inter', sans-serif;
+    background: #F0FDF4;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid #BBF7D0;
+}
+
+.eq-live-dot {
+    width: 7px;
+    height: 7px;
+    background: #22C55E;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 2s infinite;
+}
+
+/* ── Header Brand ── */
+.eq-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+}
+
+.eq-header-logo {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.12);
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }

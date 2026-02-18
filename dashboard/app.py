@@ -1,142 +1,234 @@
 """
-Equilibrate — Main Dashboard Entry Point v3.0
-Professional banking operations console.
+Equilibrate — Home (Operations Hub)
+KPI overview + Immediate Attention table + hardship breakdown.
+Auto-refreshes every 3 minutes.
 """
 import streamlit as st
-import os, sys
-from datetime import datetime
+import pandas as pd
+import plotly.graph_objects as go
+import sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils import load_css, render_header
+from utils import (
+    load_css, render_header, render_sidebar, render_live_tag,
+    fetch_all_customers, risk_counts, hardship_distribution,
+    REFRESH_INTERVAL_MS,
+)
 
-# ─── Page Config ───
 st.set_page_config(
-    page_title="Equilibrate — Operations Console",
+    page_title="Home — Equilibrate",
     page_icon="E",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ─── Load Theme FIRST ───
 load_css()
 
-# ─── Sidebar ───
-with st.sidebar:
-    st.markdown("""
-    <div class="sidebar-logo">
-        <div class="sidebar-logo-text">Equilibrate</div>
-        <div class="sidebar-logo-sub">Operations Console</div>
-    </div>
-    """, unsafe_allow_html=True)
+# Auto Refresh — every 3 minutes
+from streamlit_autorefresh import st_autorefresh
+st_autorefresh(interval=REFRESH_INTERVAL_MS, limit=None, key="home_refresh")
 
-    st.markdown("---")
-
-    # System Status
-    st.markdown("##### System")
-    import redis
-    try:
-        rc = redis.Redis(host="localhost", port=6379, decode_responses=True)
-        rc.ping()
-        customer_count = len(rc.keys("customer:*"))
-        st.markdown(f"""
-        <div class="sidebar-status"><span class="status-dot-green"></span> Redis Connected</div>
-        <div class="sidebar-status" style="margin-left: 16px; color: #7BA3C9;">{customer_count:,} customers monitored</div>
-        """, unsafe_allow_html=True)
-    except Exception:
-        st.markdown("""
-        <div class="sidebar-status"><span class="status-dot-red"></span> Redis Disconnected</div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    now = datetime.now().strftime("%d %b %Y, %H:%M")
-    st.caption(f"Last refreshed: {now}")
-    st.caption("v3.0 — Real-Time Operations")
-
-# ─── Main Content ───
+render_sidebar()
 render_header()
 
-st.markdown("# Operations Hub")
+title_col, live_col = st.columns([4, 1])
+with title_col:
+    st.markdown("# Operations Hub")
+with live_col:
+    st.markdown("<br>", unsafe_allow_html=True)
+    render_live_tag()
 
-# Feature cards with icons
+# ── Data ──
+df = fetch_all_customers()
+
+if df.empty:
+    st.warning("No customer data available. Ensure the Kafka pipeline and feature engine are running.")
+    st.stop()
+
+counts = risk_counts(df)
+total = len(df)
+
+# ── KPI Cards ──
+st.markdown("## Key Performance Indicators")
+c1, c2, c3, c4 = st.columns(4)
+with c1:
+    st.metric("Total Customers", f"{total:,}")
+with c2:
+    st.metric("High Risk", f"{counts['HIGH']:,}")
+with c3:
+    st.metric("Medium Risk", f"{counts['MEDIUM']:,}")
+with c4:
+    st.metric("Low Risk", f"{counts['LOW']:,}")
+
+# ── High Risk % indicator ──
+h_pct = 100 * counts["HIGH"] / total if total else 0
+severity = "normal" if h_pct < 3 else "elevated" if h_pct < 5 else "critical"
+color_map = {"normal": "#22C55E", "elevated": "#F59E0B", "critical": "#E5484D"}
+st.markdown(f"""
+<div class="eq-card" style="text-align:center; padding:14px;">
+    <span style="font-size:0.9rem; color:#0f172a;">High Risk Rate: </span>
+    <span style="font-size:1.2rem; font-weight:700; color:{color_map[severity]};">{h_pct:.1f}%</span>
+    <span style="font-size:0.82rem; color:#64748b;"> ({severity})</span>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Risk Distribution Donut ──
+st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
+st.markdown("## Risk Distribution")
+
+chart_col, summary_col = st.columns([2, 1])
+with chart_col:
+    fig = go.Figure(data=[go.Pie(
+        labels=["HIGH", "MEDIUM", "LOW"],
+        values=[counts["HIGH"], counts["MEDIUM"], counts["LOW"]],
+        marker=dict(
+            colors=["#E5484D", "#F59E0B", "#22C55E"],
+            line=dict(color="#FFFFFF", width=2),
+        ),
+        hole=0.58,
+        textinfo="value+percent",
+        textfont=dict(size=13, family="Inter, sans-serif", color="#0f172a"),
+        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>Share: %{percent}<extra></extra>",
+    )])
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, Segoe UI, sans-serif", color="#0f172a"),
+        margin=dict(t=20, b=30, l=30, r=30),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=-0.08, xanchor="center", x=0.5,
+            font=dict(size=12, family="Inter, sans-serif", color="#0f172a"),
+        ),
+        annotations=[dict(
+            text=f"<b>{total:,}</b><br><span style='font-size:11px;color:#64748b'>Total</span>",
+            x=0.5, y=0.5, font_size=20, font_family="Inter, sans-serif",
+            showarrow=False, font_color="#0f172a",
+        )],
+        height=320,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+with summary_col:
+    for level, color, label in [("HIGH", "#E5484D", "High Risk"), ("MEDIUM", "#F59E0B", "Medium Risk"), ("LOW", "#22C55E", "Low Risk")]:
+        pct = 100 * counts[level] / total if total else 0
+        st.markdown(f"""
+        <div class="eq-card" style="border-left:4px solid {color}; padding:12px 16px; margin-bottom:8px;">
+            <div style="font-size:0.82rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.8px;">{label}</div>
+            <div style="font-size:1.4rem; font-weight:700; color:#0f172a;">{counts[level]:,}
+                <span style="font-size:0.82rem; color:#64748b; font-weight:500;">({pct:.1f}%)</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ── Immediate Attention Table ──
+st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
+st.markdown("## Immediate Attention Required")
+
+if "risk_level" in df.columns:
+    high_df = df[df["risk_level"] == "HIGH"].copy()
+
+    if high_df.empty:
+        st.info("No customers currently classified as HIGH risk.")
+    else:
+        if "risk_score" in high_df.columns:
+            high_df = high_df.sort_values("risk_score", ascending=False)
+
+        col_map = {
+            "customer_id": "Customer ID",
+            "risk_score": "Risk Score",
+            "hardship_type": "Hardship Type",
+            "city": "City",
+            "employment_type": "Employment",
+            "salary_count": "Salary Credits",
+            "atm_withdrawals_7d": "ATM (7d)",
+            "recommended_action": "Recommended Action",
+        }
+
+        display_cols = [c for c in col_map if c in high_df.columns]
+        display_df = high_df[display_cols].rename(columns=col_map).reset_index(drop=True)
+
+        if "Hardship Type" in display_df.columns:
+            display_df["Hardship Type"] = display_df["Hardship Type"].apply(
+                lambda x: str(x).replace("_", " ").title() if pd.notna(x) and x != "NONE" else "None"
+            )
+
+        if "Employment" in display_df.columns:
+            display_df["Employment"] = display_df["Employment"].apply(
+                lambda x: str(x).replace("_", " ").title() if pd.notna(x) else "Unknown"
+            )
+
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            height=min(400, 40 + len(display_df) * 35),
+            hide_index=True,
+        )
+        st.caption(f"{len(display_df):,} customers require immediate review")
+else:
+    st.info("Risk engine has not yet evaluated customers. Waiting for data.")
+
+# ── Hardship Breakdown ──
+st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
+st.markdown("## Hardship Distribution")
+hardship = hardship_distribution(df)
+if hardship:
+    h_col1, h_col2 = st.columns([2, 1])
+    with h_col1:
+        for htype, count in sorted(hardship.items(), key=lambda x: -x[1]):
+            pct = 100 * count / total
+            label = htype.replace("_", " ").title()
+            st.markdown(f"""
+            <div class="eq-card" style="display:flex; justify-content:space-between; align-items:center; padding:12px 18px; margin-bottom:6px;">
+                <span style="font-weight:600; color:#0f172a; font-size:0.92rem;">{label}</span>
+                <span style="font-weight:700; color:#1F6FEB; font-size:0.95rem;">{count:,}
+                    <span style="font-size:0.78rem; color:#64748b;">({pct:.1f}%)</span>
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+    with h_col2:
+        st.markdown(f"""
+        <div class="eq-card" style="text-align:center; padding:20px;">
+            <div style="font-size:2rem; font-weight:700; color:#0f172a;">{len(hardship)}</div>
+            <div style="font-size:0.82rem; color:#64748b; text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Active Hardship Types</div>
+        </div>
+        """, unsafe_allow_html=True)
+else:
+    st.info("No hardship classifications detected yet.")
+
+# ── Navigation Cards ──
+st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
+st.markdown("## Operations Modules")
+
 col1, col2, col3, col4 = st.columns(4)
-
 with col1:
     st.markdown("""
     <div class="eq-feature-card">
-        <div class="eq-feature-icon" style="background: linear-gradient(135deg, #2E86DE, #1F4E79);">P</div>
+        <div class="eq-feature-icon" style="background: linear-gradient(135deg, #1F6FEB, #0E2A5A);">P</div>
         <div class="eq-feature-title">Portfolio Overview</div>
-        <p class="eq-feature-desc">Real-time risk distribution, KPIs, and hardship trend analysis.</p>
+        <p class="eq-feature-desc">Risk distribution, hardship breakdown, and trend analysis.</p>
     </div>
     """, unsafe_allow_html=True)
-
 with col2:
     st.markdown("""
     <div class="eq-feature-card">
-        <div class="eq-feature-icon" style="background: linear-gradient(135deg, #E74C3C, #C0392B);">R</div>
+        <div class="eq-feature-icon" style="background: linear-gradient(135deg, #E5484D, #B91C1C);">R</div>
         <div class="eq-feature-title">Risk Queue</div>
-        <p class="eq-feature-desc">Prioritised table of flagged customers requiring officer review.</p>
+        <p class="eq-feature-desc">Prioritised queue for officer review and case management.</p>
     </div>
     """, unsafe_allow_html=True)
-
 with col3:
     st.markdown("""
     <div class="eq-feature-card">
-        <div class="eq-feature-icon" style="background: linear-gradient(135deg, #F39C12, #E67E22);">C</div>
+        <div class="eq-feature-icon" style="background: linear-gradient(135deg, #F59E0B, #D97706);">C</div>
         <div class="eq-feature-title">Customer Profile</div>
-        <p class="eq-feature-desc">360-degree customer view with risk explainability and financial behaviour.</p>
+        <p class="eq-feature-desc">360-degree view with risk explainability.</p>
     </div>
     """, unsafe_allow_html=True)
-
 with col4:
     st.markdown("""
     <div class="eq-feature-card">
-        <div class="eq-feature-icon" style="background: linear-gradient(135deg, #2ECC71, #27AE60);">I</div>
+        <div class="eq-feature-icon" style="background: linear-gradient(135deg, #22C55E, #16A34A);">I</div>
         <div class="eq-feature-title">Intervention Center</div>
-        <p class="eq-feature-desc">Generate personalised support messages and log all outreach actions.</p>
+        <p class="eq-feature-desc">Policy-based communications and audit trail.</p>
     </div>
     """, unsafe_allow_html=True)
-
-# Quick stats
-st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
-
-try:
-    rc = redis.Redis(host="localhost", port=6379, decode_responses=True)
-    all_keys = rc.keys("customer:*")
-    total = len(all_keys)
-
-    # Quick count of risk levels
-    high = 0
-    medium = 0
-    low = 0
-    sample_keys = all_keys[:500]  # Sample for speed
-    for k in sample_keys:
-        rl = rc.hget(k, "risk_level")
-        if rl == "HIGH":
-            high += 1
-        elif rl == "MEDIUM":
-            medium += 1
-        elif rl == "LOW":
-            low += 1
-
-    # Scale to full count
-    if sample_keys:
-        scale = total / len(sample_keys)
-        high = int(high * scale)
-        medium = int(medium * scale)
-        low = int(low * scale)
-
-    st.markdown("## Quick Summary")
-    qc1, qc2, qc3, qc4 = st.columns(4)
-    with qc1:
-        st.metric("Total Customers", f"{total:,}")
-    with qc2:
-        st.metric("High Risk", f"{high:,}")
-    with qc3:
-        st.metric("Medium Risk", f"{medium:,}")
-    with qc4:
-        st.metric("Low Risk", f"{low:,}")
-except Exception:
-    st.info("Connect to Redis to view quick summary statistics.")
-
-st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
-st.info("Select a section from the sidebar to begin operations.")

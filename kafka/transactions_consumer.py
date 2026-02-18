@@ -27,6 +27,7 @@ CSV_FIELDS = [
     "channel",
     "merchant_category",
     "is_salary",
+    "persona",
 ]
 
 # Resolve CSV path relative to project root (one level above /kafka)

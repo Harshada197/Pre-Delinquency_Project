@@ -2,3 +2,11 @@ timestamp,customer_id,risk_level,action_taken,message_sent
 2026-02-16 13:53:57,1523,MEDIUM,SMS_SENT,"Dear Valued Customer (ID: 1523),
 
 We understand that unexpected changes in income can create financial pressure. As part of our commitment to supporting you through challenging times, we would like to"
+2026-02-18 10:22:29,1515,HIGH,SMS_SENT,"Dear Valued Customer (ID: 1515),
+
+We understand that unexpected changes in income can create financial pressure. As part of our commitment to supporting you through challenging times, we would like to"
+2026-02-18 10:23:17,1315,MEDIUM,MARKED_REVIEWED,Officer reviewed customer profile
+2026-02-18 10:23:19,1315,MEDIUM,CALL_SCHEDULED,Follow-up call scheduled with customer
+2026-02-18 10:23:21,1315,MEDIUM,SMS_SENT,"Dear Valued Customer (ID: 1315),
+
+We understand that unexpected changes in income can create financial pressure. As part of our commitment to supporting you through challenging times, we would like to"

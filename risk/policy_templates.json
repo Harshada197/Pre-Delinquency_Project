@@ -1,0 +1,108 @@
+{
+    "INCOME_SHOCK": {
+        "HIGH": {
+            "action": "Offer EMI payment holiday (up to 3 months) & verify employment status",
+            "message": "Dear Customer {customer_id}, we understand sudden income changes can be stressful. We are offering you an EMI payment holiday for up to 3 months. Our support team will contact you to verify your current employment status and discuss options. Contact: 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "URGENT",
+            "sla_hours": 4
+        },
+        "MEDIUM": {
+            "action": "Send income disruption awareness & offer flexible repayment",
+            "message": "Dear Customer {customer_id}, we noticed changes in your salary pattern. We would like to offer flexible repayment options to support you. Please reach out to our financial support team at 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "HIGH",
+            "sla_hours": 24
+        },
+        "LOW": {
+            "action": "Continue monitoring salary patterns",
+            "message": null,
+            "priority": "ROUTINE",
+            "sla_hours": 168
+        }
+    },
+    "LIQUIDITY_STRESS": {
+        "HIGH": {
+            "action": "Flag for urgent review & offer emergency digital payment migration",
+            "message": "Dear Customer {customer_id}, we have noticed increased cash withdrawal activity on your account. For your convenience and safety, we are offering complimentary digital payment setup assistance and a temporary overdraft facility. Contact: 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "URGENT",
+            "sla_hours": 4
+        },
+        "MEDIUM": {
+            "action": "Send financial wellness tips & suggest digital payment alternatives",
+            "message": "Dear Customer {customer_id}, we would like to share some financial wellness resources with you. Our digital banking tools can help you manage your finances more effectively. Visit your branch or call 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "HIGH",
+            "sla_hours": 48
+        },
+        "LOW": {
+            "action": "Monitor withdrawal patterns",
+            "message": null,
+            "priority": "ROUTINE",
+            "sla_hours": 168
+        }
+    },
+    "EXPENSE_COMPRESSION": {
+        "HIGH": {
+            "action": "Offer EMI restructuring & refer to financial counsellor",
+            "message": "Dear Customer {customer_id}, we have observed changes in your spending patterns that may indicate financial pressure. We are offering EMI restructuring to reduce your monthly burden, along with free access to our financial counselling service. Contact: 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "URGENT",
+            "sla_hours": 8
+        },
+        "MEDIUM": {
+            "action": "Send budgeting tools & suggest expense management resources",
+            "message": "Dear Customer {customer_id}, as part of our customer care programme, we would like to share budgeting tools and expense management resources that may help you optimise your finances. Visit our app or call 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "MEDIUM",
+            "sla_hours": 72
+        },
+        "LOW": {
+            "action": "Continue monitoring spending ratios",
+            "message": null,
+            "priority": "ROUTINE",
+            "sla_hours": 168
+        }
+    },
+    "OVERSPENDING": {
+        "HIGH": {
+            "action": "Mandate financial counselling & freeze credit limit increase",
+            "message": "Dear Customer {customer_id}, our systems have flagged elevated discretionary spending on your account. As a precautionary measure, we recommend a session with our financial counsellor. Your relationship manager will contact you within 24 hours. Ref: {ref_id}",
+            "priority": "URGENT",
+            "sla_hours": 8
+        },
+        "MEDIUM": {
+            "action": "Refer to financial counselling programme",
+            "message": "Dear Customer {customer_id}, we would like to offer you complimentary access to our financial wellness programme, including personalised budgeting advice. Contact: 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "MEDIUM",
+            "sla_hours": 72
+        },
+        "LOW": {
+            "action": "Monitor credit utilisation trends",
+            "message": null,
+            "priority": "ROUTINE",
+            "sla_hours": 168
+        }
+    },
+    "NONE": {
+        "HIGH": {
+            "action": "Manual review required — multiple risk signals detected",
+            "message": "Dear Customer {customer_id}, as part of our routine account review, we would like to discuss your account activity. Please contact your relationship manager or call 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "HIGH",
+            "sla_hours": 24
+        },
+        "MEDIUM": {
+            "action": "Continue enhanced monitoring",
+            "message": null,
+            "priority": "MEDIUM",
+            "sla_hours": 72
+        },
+        "LOW": {
+            "action": "Continue standard monitoring",
+            "message": null,
+            "priority": "ROUTINE",
+            "sla_hours": 168
+        }
+    },
+    "_metadata": {
+        "version": "2.0",
+        "last_updated": "2026-02-18",
+        "compliance_approved": true,
+        "note": "LLM-based message personalization can be added post compliance approval. All templates are pre-approved by the compliance team."
+    }
+}

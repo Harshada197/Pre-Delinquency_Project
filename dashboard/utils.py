@@ -1,281 +1,296 @@
 """
-Equilibrate — Dashboard Utilities v3.0
-Redis data access, risk analysis, badge rendering, and CSS loader.
+Equilibrate — Dashboard Utilities v8.0
+Redis data access, static CSV merge, risk analysis, sidebar builder.
+Feedback loop writes intervention data back to Redis.
+Policy-based message generation.
 """
 import redis
 import pandas as pd
+import json
 import os
+import sys
 import streamlit as st
+from datetime import datetime
 
+# Add ui module to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ui.theme import apply_theme
 
 # ── Redis Connection ──
-r = redis.Redis(host="localhost", port=6379, decode_responses=True)
-
-# ── Paths ──
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CSS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "styles", "theme.css")
-CUSTOMERS_CSV = os.path.join(PROJECT_ROOT, "data", "customers.csv")
+_redis_client = None
 
 
-# ═══════════════════════════════════════════════
-# CSS & HEADER
-# ═══════════════════════════════════════════════
-
-def load_css():
-    """Load the external CSS theme file."""
-    if os.path.isfile(CSS_PATH):
-        with open(CSS_PATH, "r", encoding="utf-8") as f:
-            css = f.read()
-        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+def get_redis():
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+    return _redis_client
 
 
-def render_header():
-    """Render the professional platform header banner."""
-    st.markdown("""
-    <div class="eq-header">
-        <div class="eq-header-title">EQUILIBRATE</div>
-        <div class="eq-header-divider"></div>
-        <div class="eq-header-subtitle">Pre-Delinquency Intervention Engine &bull; Internal Operations Console</div>
-    </div>
-    """, unsafe_allow_html=True)
+# ── Policy Templates ──
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+POLICY_PATH = os.path.join(BASE_DIR, "risk", "policy_templates.json")
+CUSTOMERS_CSV = os.path.join(BASE_DIR, "data", "customers.csv")
+_policy_cache = None
+_static_cache = None
 
 
-def render_live_tag():
-    """Show a live data indicator."""
-    st.markdown("""
-    <div class="live-indicator">
-        <span class="live-dot"></span> Live Data
-    </div>
-    """, unsafe_allow_html=True)
+def _load_policies():
+    global _policy_cache
+    if _policy_cache is None:
+        try:
+            with open(POLICY_PATH, "r", encoding="utf-8") as f:
+                _policy_cache = json.load(f)
+        except Exception:
+            _policy_cache = {}
+    return _policy_cache
 
 
-# ═══════════════════════════════════════════════
-# BADGE RENDERING
-# ═══════════════════════════════════════════════
-
-def risk_badge(level: str) -> str:
-    """Return HTML for a styled risk badge."""
-    level = str(level).upper().strip()
-    badge_map = {
-        "HIGH": '<span class="badge-high">HIGH RISK</span>',
-        "MEDIUM": '<span class="badge-medium">MEDIUM RISK</span>',
-        "LOW": '<span class="badge-low">LOW RISK</span>',
-    }
-    return badge_map.get(level, f'<span class="badge-unknown">{level}</span>')
-
-
-def risk_badge_large(level: str) -> str:
-    """Return HTML for a large styled risk badge (profile page)."""
-    level = str(level).upper().strip()
-    badge_map = {
-        "HIGH": '<span class="badge-high-lg">HIGH RISK</span>',
-        "MEDIUM": '<span class="badge-medium-lg">MEDIUM RISK</span>',
-        "LOW": '<span class="badge-low-lg">LOW RISK</span>',
-    }
-    return badge_map.get(level, f'<span class="badge-unknown">{level}</span>')
-
-
-def risk_badge_short(level: str) -> str:
-    """Compact badge — table use."""
-    level = str(level).upper().strip()
-    badge_map = {
-        "HIGH": '<span class="badge-high">HIGH</span>',
-        "MEDIUM": '<span class="badge-medium">MEDIUM</span>',
-        "LOW": '<span class="badge-low">LOW</span>',
-    }
-    return badge_map.get(level, f'<span class="badge-unknown">{level}</span>')
-
-
-# ═══════════════════════════════════════════════
-# DATA ACCESS
-# ═══════════════════════════════════════════════
-
-def _load_customer_profiles() -> pd.DataFrame:
-    """Load customer static profiles from CSV."""
-    if os.path.isfile(CUSTOMERS_CSV):
+def _load_static_customers():
+    """Load static customer data from customers.csv (city, employment_type, age, salary)."""
+    global _static_cache
+    if _static_cache is None:
         try:
             df = pd.read_csv(CUSTOMERS_CSV)
             df["customer_id"] = df["customer_id"].astype(str)
-            return df
+            _static_cache = df.set_index("customer_id")[
+                ["city", "employment_type", "age", "salary"]
+            ].to_dict("index")
         except Exception:
-            return pd.DataFrame()
-    return pd.DataFrame()
+            _static_cache = {}
+    return _static_cache
 
 
-def fetch_all_customers() -> pd.DataFrame:
-    """Fetch all customer profiles from Redis and merge with CSV data."""
-    try:
-        keys = r.keys("customer:*")
-    except Exception:
-        return pd.DataFrame()
+# ── Auto-refresh interval (3 minutes) ──
+REFRESH_INTERVAL_MS = 180_000
 
+
+# ═══════════════════════════════════════════════════════════════
+# DATA FETCHING
+# ═══════════════════════════════════════════════════════════════
+
+@st.cache_data(ttl=10)
+def fetch_all_customers():
+    """Fetch all customer profiles from Redis, merge static CSV data, return DataFrame."""
+    r = get_redis()
+    keys = r.keys("customer:*")
     if not keys:
         return pd.DataFrame()
 
-    records = []
+    rows = []
     for key in keys:
-        try:
-            profile = r.hgetall(key)
-            if not profile:
-                continue
-            cid = key.replace("customer:", "")
-            profile["customer_id"] = cid
-            records.append(profile)
-        except Exception:
-            continue
+        data = r.hgetall(key)
+        if data:
+            cleaned = {k: v for k, v in data.items() if not k.startswith("_")}
+            rows.append(cleaned)
 
-    if not records:
+    if not rows:
         return pd.DataFrame()
 
-    df = pd.DataFrame(records)
+    df = pd.DataFrame(rows)
 
-    # Ensure numeric columns
+    # Type conversions
     numeric_cols = [
-        "txn_count", "total_spend", "withdrawals", "salary_count",
-        "essential_spend", "discretionary_spend", "risk_score",
+        "txn_count", "total_spend", "essential_spend", "discretionary_spend",
+        "salary_count", "days_since_salary", "atm_withdrawals_7d",
+        "txn_frequency_7d", "spending_change_pct", "risk_score", "withdrawals",
     ]
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    # Merge with static profiles
-    profiles = _load_customer_profiles()
-    if not profiles.empty and "customer_id" in profiles.columns:
-        merge_cols = ["customer_id"]
-        for c in ["age", "city", "employment_type", "salary", "emi_amount"]:
-            if c in profiles.columns:
-                merge_cols.append(c)
-        df = df.merge(profiles[merge_cols], on="customer_id", how="left")
+    # ── Merge static customer data (city, employment_type, age) ──
+    static = _load_static_customers()
+    if static and "customer_id" in df.columns:
+        df["customer_id"] = df["customer_id"].astype(str)
+        df["city"] = df["customer_id"].map(lambda cid: static.get(cid, {}).get("city", "Unknown"))
+        df["employment_type"] = df["customer_id"].map(
+            lambda cid: static.get(cid, {}).get("employment_type", "Unknown")
+        )
+        df["age"] = df["customer_id"].map(
+            lambda cid: static.get(cid, {}).get("age", 0)
+        )
+        df["static_salary"] = df["customer_id"].map(
+            lambda cid: static.get(cid, {}).get("salary", 0)
+        )
 
     return df
 
 
-def fetch_customer(customer_id) -> dict:
-    """Fetch a single customer's full profile from Redis + CSV."""
+def get_customer_profile(customer_id):
+    """Get a single customer's complete profile from Redis + static CSV."""
+    r = get_redis()
     key = f"customer:{customer_id}"
-    try:
-        profile = r.hgetall(key)
-    except Exception:
-        return {}
-
-    if not profile:
-        return {}
-
-    profile["customer_id"] = str(customer_id)
+    data = r.hgetall(key)
+    if not data:
+        return None
+    profile = {k: v for k, v in data.items() if not k.startswith("_")}
 
     # Merge static data
-    profiles = _load_customer_profiles()
-    if not profiles.empty:
-        row = profiles[profiles["customer_id"] == str(customer_id)]
-        if not row.empty:
-            for col in row.columns:
-                if col not in profile:
-                    profile[col] = str(row.iloc[0][col])
+    static = _load_static_customers()
+    cid = str(customer_id)
+    if cid in static:
+        profile["city"] = static[cid].get("city", "Unknown")
+        profile["employment_type"] = static[cid].get("employment_type", "Unknown")
+        profile["age"] = str(static[cid].get("age", ""))
+        profile["static_salary"] = str(static[cid].get("salary", ""))
 
     return profile
 
 
-def risk_counts(df: pd.DataFrame) -> dict:
+# ═══════════════════════════════════════════════════════════════
+# RISK ANALYSIS
+# ═══════════════════════════════════════════════════════════════
+
+def risk_counts(df):
     """Count customers by risk level."""
-    if df.empty or "risk_level" not in df.columns:
-        return {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
-
-    counts = df["risk_level"].value_counts().to_dict()
-    return {
-        "HIGH": counts.get("HIGH", 0),
-        "MEDIUM": counts.get("MEDIUM", 0),
-        "LOW": counts.get("LOW", 0),
-    }
+    counts = {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    if "risk_level" in df.columns:
+        vc = df["risk_level"].value_counts()
+        for level in counts:
+            counts[level] = int(vc.get(level, 0))
+    return counts
 
 
-def hardship_distribution(df: pd.DataFrame) -> dict:
-    """Count customers by hardship type."""
-    if df.empty or "hardship_type" not in df.columns:
+def hardship_distribution(df):
+    """Count customers by hardship type (excluding NONE)."""
+    if "hardship_type" not in df.columns:
         return {}
-
-    dist = df["hardship_type"].value_counts().to_dict()
-    dist.pop("NONE", None)
-    return dist
+    vc = df["hardship_type"].value_counts()
+    return {k: int(v) for k, v in vc.items() if k and k != "NONE"}
 
 
-# ═══════════════════════════════════════════════
-# RISK EXPLAINABILITY
-# ═══════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+# FEEDBACK LOOP
+# ═══════════════════════════════════════════════════════════════
 
-def get_risk_reasons(profile: dict) -> list:
-    """Generate human-readable risk factors from customer data."""
-    reasons = []
-    salary_count = int(profile.get("salary_count", 0))
-    withdrawals = int(profile.get("withdrawals", 0))
-    total_spend = float(profile.get("total_spend", 0))
-    essential = float(profile.get("essential_spend", 0))
-    discretionary = float(profile.get("discretionary_spend", 0))
-
-    if salary_count == 0:
-        reasons.append("No recent salary credit detected — possible income disruption")
-    if withdrawals > 10:
-        reasons.append(f"Abnormally high ATM withdrawals ({withdrawals}) — potential panic liquidity behaviour")
-    elif withdrawals > 5:
-        reasons.append(f"Elevated cash withdrawals ({withdrawals}) — above normal threshold")
-    if total_spend < 2000 and total_spend > 0:
-        reasons.append("Spending contraction detected — total expenditure below baseline")
-    if essential > 0 and discretionary > 0 and essential > discretionary * 2:
-        ratio = round(essential / max(discretionary, 1), 1)
-        reasons.append(f"Essential-to-discretionary spend ratio is {ratio}x — financial stress indicator")
-    if essential > 0 and discretionary == 0:
-        reasons.append("Zero discretionary spending — customer may be in survival mode")
-
-    return reasons
+def write_intervention_feedback(customer_id, status, action_description):
+    """Write intervention feedback back to Redis for the ML feedback loop."""
+    r = get_redis()
+    key = f"customer:{customer_id}"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    r.hset(key, mapping={
+        "last_intervention": action_description,
+        "intervention_status": status,
+        "intervention_timestamp": now,
+    })
 
 
-# ═══════════════════════════════════════════════
-# INTERVENTION MESSAGES
-# ═══════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+# POLICY MESSAGE GENERATION
+# ═══════════════════════════════════════════════════════════════
 
-def generate_intervention_message(hardship_type: str, customer_id: str) -> str:
-    """Generate a professional support message based on hardship classification."""
-    messages = {
-        "INCOME_SHOCK": (
-            f"Dear Valued Customer (ID: {customer_id}),\n\n"
-            "We understand that unexpected changes in income can create financial pressure. "
-            "As part of our commitment to supporting you through challenging times, "
-            "we would like to offer a temporary payment holiday of up to 3 months on your EMI obligations.\n\n"
-            "Our dedicated financial support team is available to discuss options that work best for your situation.\n\n"
-            "Please contact our support line at 1800-XXX-XXXX or visit your nearest branch.\n\n"
-            "Warm regards,\n"
-            "Customer Support Division\n"
-            "Equilibrate Financial Services"
-        ),
-        "LIQUIDITY_STRESS": (
-            f"Dear Valued Customer (ID: {customer_id}),\n\n"
-            "We have identified changes in your account activity and would like to offer our support. "
-            "Our complimentary financial wellness programme includes budgeting assistance, "
-            "cash flow management tools, and one-on-one sessions with our financial advisors.\n\n"
-            "These resources are designed to help you navigate your current financial position with confidence.\n\n"
-            "Contact us at 1800-XXX-XXXX to schedule your consultation.\n\n"
-            "With care,\n"
-            "Customer Support Division\n"
-            "Equilibrate Financial Services"
-        ),
-        "EXPENSE_COMPRESSION": (
-            f"Dear Valued Customer (ID: {customer_id}),\n\n"
-            "We value your continued relationship with us and have noted recent changes in your spending patterns. "
-            "We would like to explore EMI restructuring options that could reduce your monthly repayment burden "
-            "while maintaining your account in good standing.\n\n"
-            "Our restructuring team can help you find a repayment plan that aligns with your current circumstances.\n\n"
-            "Please contact 1800-XXX-XXXX to discuss available options.\n\n"
-            "Best regards,\n"
-            "Customer Support Division\n"
-            "Equilibrate Financial Services"
-        ),
-    }
-    return messages.get(
-        hardship_type,
-        f"Dear Valued Customer (ID: {customer_id}),\n\n"
-        "We are reaching out as part of our proactive customer care programme. "
-        "Our support team is available to assist with any financial concerns you may have.\n\n"
-        "Contact us at 1800-XXX-XXXX.\n\n"
-        "Regards,\n"
-        "Customer Support Division\n"
-        "Equilibrate Financial Services"
-    )
+def generate_policy_message(customer_id, hardship_type, risk_level, ref_id,
+                            channel="SMS"):
+    """Generate a policy-compliant message from templates.
+
+    NO LLM involved. Uses policy_templates.json with variable substitution.
+    Supports SMS, WhatsApp, and Voice channels.
+    """
+    policies = _load_policies()
+    hardship_key = hardship_type if hardship_type in policies else "NONE"
+    policy = policies.get(hardship_key, {}).get(risk_level, {})
+    template = policy.get("message", "")
+
+    if not template:
+        template = (
+            "Dear Customer {customer_id}, we would like to inform you about "
+            "our support options. Please contact our helpline at 1800-XXX-XXXX "
+            "for more information. Ref: {ref_id}"
+        )
+
+    message = template.replace("{customer_id}", str(customer_id))
+    message = message.replace("{ref_id}", str(ref_id))
+
+    # Add channel-specific prefix
+    if channel == "WhatsApp":
+        message = f"[WhatsApp] {message}"
+    elif channel == "Voice":
+        message = f"[Voice/IVR] {message}"
+
+    return message
+
+
+# ═══════════════════════════════════════════════════════════════
+# UI COMPONENTS
+# ═══════════════════════════════════════════════════════════════
+
+def load_css():
+    """Load CSS and apply theme."""
+    apply_theme()
+    css_path = os.path.join(os.path.dirname(__file__), "styles", "theme.css")
+    if os.path.isfile(css_path):
+        with open(css_path, "r", encoding="utf-8") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+
+def render_header():
+    """Render the Equilibrate header."""
+    st.markdown("""
+    <div class="eq-header">
+        <div class="eq-header-brand">
+            <span class="eq-header-logo">E</span>
+            <span class="eq-header-title">Equilibrate</span>
+            <span class="eq-header-subtitle">Pre-Delinquency Intervention Engine</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_sidebar():
+    """Render the sidebar navigation with system status."""
+    with st.sidebar:
+        st.markdown("""
+        <div style="padding:14px 0 8px 0;">
+            <div style="font-size:1.15rem; font-weight:800; color:#FFFFFF; letter-spacing:2px; margin-bottom:4px;">
+                EQUILIBRATE
+            </div>
+            <div style="font-size:0.78rem; color:#8BACC8; margin-bottom:12px;">
+                Pre-Delinquency Engine v4.0
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # System status
+        try:
+            r = get_redis()
+            customer_count = len(r.keys("customer:*"))
+            r.ping()
+            redis_status = "Connected"
+            redis_color = "#22C55E"
+        except Exception:
+            customer_count = 0
+            redis_status = "Disconnected"
+            redis_color = "#E5484D"
+
+        st.markdown(f"""
+        <div style="padding:10px 0; font-size:0.85rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="color:#8BACC8; font-weight:500;">Redis</span>
+                <span style="color:{redis_color}; font-weight:700; font-size:0.82rem;">{redis_status}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="color:#8BACC8; font-weight:500;">Customers</span>
+                <span style="color:#FFFFFF; font-weight:700;">{customer_count:,}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="color:#8BACC8; font-weight:500;">Refresh</span>
+                <span style="color:#FFFFFF; font-weight:600;">3 min</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:#8BACC8; font-weight:500;">Updated</span>
+                <span style="color:#FFFFFF; font-weight:600;">{datetime.now().strftime('%H:%M:%S')}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def render_live_tag():
+    """Render a LIVE indicator pulsing tag."""
+    st.markdown("""
+    <div class="eq-live-tag">
+        <span class="eq-live-dot"></span> LIVE
+    </div>
+    """, unsafe_allow_html=True)

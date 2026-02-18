@@ -7,3 +7,5 @@ faker
 xgboost
 scikit-learn
 joblib
+gTTS
+streamlit-autorefresh
