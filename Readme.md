@@ -222,19 +222,7 @@ streamlit run dashboard/Home.py
 - Edit and send SMS/email
 - Full intervention audit history per customer
 - All actions logged to `data/intervention_log.csv`
-
----
-
-## Team CoreCapital
-
-| # | Member |
-|---|--------|
-| 1 | Harshada Dhas |
-| 2 | Anushree Surve |
-| 3 | Srushti Kotgire |
-| 4 | Zahara Bhori |
-| 5 | Kasturi Deo |
-
+  
 ---
 
 ## Hardship Classification Rules
@@ -279,4 +267,14 @@ redis-cli hgetall customer:100
 # Check hardship distribution
 python -c "import redis; from collections import Counter; r=redis.Redis(decode_responses=True); print(Counter(r.hget(k,'hardship_type') for k in r.keys('customer:*')))"
 ```
+---
 
+## Team CoreCapital
+
+| # | Member |
+|---|--------|
+| 1 | Harshada Dhas |
+| 2 | Anushree Surve |
+| 3 | Srushti Kotgire |
+| 4 | Zahara Bhori |
+| 5 | Kasturi Deo |
