@@ -60,6 +60,27 @@ with c3:
 with c4:
     st.metric("Low Risk", f"{counts['LOW']:,}")
 
+# ── Live Timestamps (proof of real-time) ──
+from utils import get_last_live_transaction_time, get_last_risk_evaluation_time
+last_txn_time = get_last_live_transaction_time()
+last_risk_time = get_last_risk_evaluation_time()
+
+t1, t2 = st.columns(2)
+with t1:
+    st.markdown(f"""
+<div class="eq-card" style="padding:12px 18px; border-left:4px solid #1F6FEB;">
+    <div style="font-size:0.78rem; color:#64748b; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">Last Live Transaction</div>
+    <div style="font-size:1rem; font-weight:700; color:#0f172a; margin-top:4px;">{last_txn_time or 'Waiting for stream…'}</div>
+</div>
+""", unsafe_allow_html=True)
+with t2:
+    st.markdown(f"""
+<div class="eq-card" style="padding:12px 18px; border-left:4px solid #22C55E;">
+    <div style="font-size:0.78rem; color:#64748b; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">Last Risk Evaluation</div>
+    <div style="font-size:1rem; font-weight:700; color:#0f172a; margin-top:4px;">{last_risk_time or 'Waiting for engine…'}</div>
+</div>
+""", unsafe_allow_html=True)
+
 # ── High Risk % indicator ──
 h_pct = 100 * counts["HIGH"] / total if total else 0
 severity = "normal" if h_pct < 3 else "elevated" if h_pct < 5 else "critical"
@@ -167,33 +188,106 @@ if "risk_level" in df.columns:
 else:
     st.info("Risk engine has not yet evaluated customers. Waiting for data.")
 
-# ── Hardship Breakdown ──
+# ── Hardship Breakdown Bar Chart ──
 st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
-st.markdown("## Hardship Distribution")
+st.markdown("## Hardship Breakdown")
 hardship = hardship_distribution(df)
 if hardship:
-    h_col1, h_col2 = st.columns([2, 1])
-    with h_col1:
-        for htype, count in sorted(hardship.items(), key=lambda x: -x[1]):
-            pct = 100 * count / total
-            label = htype.replace("_", " ").title()
-            st.markdown(f"""
-            <div class="eq-card" style="display:flex; justify-content:space-between; align-items:center; padding:12px 18px; margin-bottom:6px;">
-                <span style="font-weight:600; color:#0f172a; font-size:0.92rem;">{label}</span>
-                <span style="font-weight:700; color:#1F6FEB; font-size:0.95rem;">{count:,}
-                    <span style="font-size:0.78rem; color:#64748b;">({pct:.1f}%)</span>
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-    with h_col2:
-        st.markdown(f"""
-        <div class="eq-card" style="text-align:center; padding:20px;">
-            <div style="font-size:2rem; font-weight:700; color:#0f172a;">{len(hardship)}</div>
-            <div style="font-size:0.82rem; color:#64748b; text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Active Hardship Types</div>
-        </div>
-        """, unsafe_allow_html=True)
+    labels = [h.replace("_", " ").title() for h in hardship.keys()]
+    values = list(hardship.values())
+    colors = ["#E5484D", "#F59E0B", "#1F6FEB", "#6366F1", "#22C55E"]
+
+    fig_bar = go.Figure(data=[go.Bar(
+        y=labels,
+        x=values,
+        orientation="h",
+        marker=dict(color=colors[:len(labels)], line=dict(width=0)),
+        text=[f"{v:,}" for v in values],
+        textposition="outside",
+        textfont=dict(size=12, family="Inter, sans-serif", color="#0f172a"),
+        hovertemplate="<b>%{y}</b><br>Count: %{x:,}<extra></extra>",
+    )])
+    fig_bar.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, Segoe UI, sans-serif", color="#0f172a"),
+        margin=dict(t=10, b=30, l=150, r=60),
+        xaxis=dict(
+            title="Number of Customers",
+            gridcolor="#E2E8F0",
+            title_font=dict(size=12, color="#64748b"),
+        ),
+        yaxis=dict(autorange="reversed"),
+        height=max(200, len(labels) * 55 + 60),
+    )
+    st.plotly_chart(fig_bar, use_container_width=True)
 else:
     st.info("No hardship classifications detected yet.")
+
+# ── Risk Trend Line Chart (last 30 min) ──
+st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
+st.markdown("## Risk Trend (Last 30 Minutes)")
+
+import os as _os
+trend_path = _os.path.join(
+    _os.path.dirname(_os.path.abspath(__file__)), "pages", "risk_trend.csv"
+)
+if _os.path.isfile(trend_path):
+    try:
+        trend_df = pd.read_csv(trend_path)
+        if "timestamp" in trend_df.columns:
+            trend_df["timestamp"] = pd.to_datetime(trend_df["timestamp"], errors="coerce")
+            cutoff = pd.Timestamp.now() - pd.Timedelta(minutes=30)
+            trend_df = trend_df[trend_df["timestamp"] >= cutoff]
+
+            if not trend_df.empty:
+                fig_trend = go.Figure()
+                for col, color, name in [
+                    ("HIGH", "#E5484D", "High Risk"),
+                    ("MEDIUM", "#F59E0B", "Medium Risk"),
+                    ("LOW", "#22C55E", "Low Risk"),
+                ]:
+                    if col in trend_df.columns:
+                        fig_trend.add_trace(go.Scatter(
+                            x=trend_df["timestamp"],
+                            y=pd.to_numeric(trend_df[col], errors="coerce").fillna(0),
+                            name=name,
+                            mode="lines+markers",
+                            line=dict(color=color, width=2),
+                            marker=dict(size=5),
+                            hovertemplate=f"<b>{name}</b><br>Time: %{{x|%H:%M}}<br>Count: %{{y}}<extra></extra>",
+                        ))
+                fig_trend.update_layout(
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(family="Inter, sans-serif", color="#0f172a"),
+                    margin=dict(t=10, b=40, l=50, r=20),
+                    xaxis=dict(
+                        title="Time",
+                        gridcolor="#E2E8F0",
+                        title_font=dict(size=12, color="#64748b"),
+                    ),
+                    yaxis=dict(
+                        title="Customer Count",
+                        gridcolor="#E2E8F0",
+                        title_font=dict(size=12, color="#64748b"),
+                    ),
+                    legend=dict(
+                        orientation="h", yanchor="bottom", y=-0.25,
+                        xanchor="center", x=0.5,
+                        font=dict(size=12, color="#0f172a"),
+                    ),
+                    height=320,
+                )
+                st.plotly_chart(fig_trend, use_container_width=True)
+            else:
+                st.info("No trend data available for the last 30 minutes.")
+        else:
+            st.info("Risk trend data not yet available.")
+    except Exception:
+        st.info("Risk trend data not yet available.")
+else:
+    st.info("Risk trend file not found. Trends will appear once the portfolio overview page has been visited.")
 
 # ── Navigation Cards ──
 st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
@@ -221,7 +315,7 @@ with col3:
     <div class="eq-feature-card">
         <div class="eq-feature-icon" style="background: linear-gradient(135deg, #F59E0B, #D97706);">C</div>
         <div class="eq-feature-title">Customer Profile</div>
-        <p class="eq-feature-desc">360-degree view with risk explainability.</p>
+        <p class="eq-feature-desc">Full customer detail with risk explainability.</p>
     </div>
     """, unsafe_allow_html=True)
 with col4:
@@ -232,3 +326,4 @@ with col4:
         <p class="eq-feature-desc">Policy-based communications and audit trail.</p>
     </div>
     """, unsafe_allow_html=True)
+

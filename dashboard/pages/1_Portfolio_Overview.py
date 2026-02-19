@@ -59,7 +59,7 @@ CHART_LAYOUT = dict(
     plot_bgcolor="rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
     font=CHART_FONT,
-    margin=dict(t=30, b=40, l=40, r=30),
+    margin=dict(t=30, b=60, l=50, r=30),
 )
 
 # ── Row 1: Risk Donut + Hardship Donut ──
@@ -162,18 +162,20 @@ if "hardship_type" in df.columns and "risk_level" in df.columns:
             barmode="stack",
             showlegend=True,
             legend=dict(
-                orientation="h", yanchor="bottom", y=-0.18, xanchor="center", x=0.5,
+                orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5,
                 font=dict(size=12, family="Inter", color="#334155"),
             ),
             xaxis=dict(title="Hardship Type", showgrid=False,
-                       tickfont=dict(size=12, family="Inter", color="#334155"),
-                       titlefont=dict(size=12, family="Inter", color="#64748b")),
+                       tickfont=dict(size=11, family="Inter", color="#334155"),
+                       titlefont=dict(size=12, family="Inter", color="#64748b"),
+                       tickangle=-25, automargin=True),
             yaxis=dict(title="Customers", showgrid=True, gridcolor="rgba(0,0,0,0.06)",
                        tickfont=dict(size=11, family="Inter", color="#334155"),
                        titlefont=dict(size=12, family="Inter", color="#64748b")),
-            height=380,
+            height=420,
             bargap=0.3,
         )
+        fig_stacked.update_layout(margin=dict(t=30, b=80, l=50, r=30))
         st.plotly_chart(fig_stacked, use_container_width=True)
 
 # ── Row 3: Risk Levels Over Time ──
@@ -222,17 +224,20 @@ if len(trend_df) >= 2:
     fig_line.update_layout(
         **CHART_LAYOUT,
         legend=dict(
-            orientation="h", yanchor="bottom", y=-0.18, xanchor="center", x=0.5,
+            orientation="h", yanchor="bottom", y=-0.30, xanchor="center", x=0.5,
             font=dict(size=12, family="Inter", color="#334155"),
         ),
         xaxis=dict(title="Time", showgrid=False,
-                   tickfont=dict(size=10, color="#334155"), tickangle=-45,
-                   titlefont=dict(size=12, family="Inter", color="#64748b")),
+                   tickfont=dict(size=9, color="#334155", family="Inter"),
+                   tickangle=-45,
+                   titlefont=dict(size=12, family="Inter", color="#64748b"),
+                   nticks=12, automargin=True),
         yaxis=dict(title="Customers", showgrid=True, gridcolor="rgba(0,0,0,0.06)",
                    tickfont=dict(size=11, color="#334155"),
                    titlefont=dict(size=12, family="Inter", color="#64748b")),
-        height=370,
+        height=420,
     )
+    fig_line.update_layout(margin=dict(t=30, b=100, l=50, r=30))
     st.plotly_chart(fig_line, use_container_width=True)
 else:
     st.info("Trend data is being collected. Chart appears after multiple refresh cycles.")

@@ -79,6 +79,26 @@
             "sla_hours": 168
         }
     },
+    "OVER_LEVERAGE": {
+        "HIGH": {
+            "action": "Initiate debt restructuring consultation & freeze new credit",
+            "message": "Dear Customer {customer_id}, we have identified multiple financial obligations on your account. We are offering a complimentary debt restructuring consultation to help reduce your monthly burden. Your relationship manager will contact you within 24 hours. Contact: 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "URGENT",
+            "sla_hours": 8
+        },
+        "MEDIUM": {
+            "action": "Offer debt consolidation advisory & payment restructuring",
+            "message": "Dear Customer {customer_id}, as part of our financial wellness programme, we would like to offer you debt consolidation advisory services to help manage your obligations more effectively. Contact: 1800-XXX-XXXX. Ref: {ref_id}",
+            "priority": "HIGH",
+            "sla_hours": 48
+        },
+        "LOW": {
+            "action": "Monitor debt-to-income ratio",
+            "message": null,
+            "priority": "ROUTINE",
+            "sla_hours": 168
+        }
+    },
     "NONE": {
         "HIGH": {
             "action": "Manual review required — multiple risk signals detected",

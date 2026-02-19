@@ -81,15 +81,17 @@ def fetch_all_customers():
     for key in keys:
         data = r.hgetall(key)
         if data:
-            cleaned = {k: v for k, v in data.items() if not k.startswith("_")}
-            rows.append(cleaned)
+            profile = {k: v for k, v in data.items() if not k.startswith("_")}
+            if "customer_id" not in profile:
+                profile["customer_id"] = key.split(":", 1)[1]
+            rows.append(profile)
 
     if not rows:
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)
 
-    # Type conversions
+    # Type conversions for numeric columns
     numeric_cols = [
         "txn_count", "total_spend", "essential_spend", "discretionary_spend",
         "salary_count", "days_since_salary", "atm_withdrawals_7d",
@@ -117,6 +119,34 @@ def fetch_all_customers():
     return df
 
 
+def get_last_live_transaction_time():
+    """Read the most recent 'last_updated' timestamp across all customers."""
+    r = get_redis()
+    keys = r.keys("customer:*")
+    if not keys:
+        return None
+    latest = None
+    for key in keys[:200]:
+        ts = r.hget(key, "last_updated")
+        if ts and (latest is None or ts > latest):
+            latest = ts
+    return latest
+
+
+def get_last_risk_evaluation_time():
+    """Read the most recent 'last_risk_eval' timestamp across all customers."""
+    r = get_redis()
+    keys = r.keys("customer:*")
+    if not keys:
+        return None
+    latest = None
+    for key in keys[:200]:
+        ts = r.hget(key, "last_risk_eval")
+        if ts and (latest is None or ts > latest):
+            latest = ts
+    return latest
+
+
 def get_customer_profile(customer_id):
     """Get a single customer's complete profile from Redis + static CSV."""
     r = get_redis()
@@ -125,6 +155,9 @@ def get_customer_profile(customer_id):
     if not data:
         return None
     profile = {k: v for k, v in data.items() if not k.startswith("_")}
+    # Ensure customer_id exists
+    if "customer_id" not in profile:
+        profile["customer_id"] = str(customer_id)
 
     # Merge static data
     static = _load_static_customers()
@@ -272,6 +305,14 @@ def render_sidebar():
                 <span style="color:{redis_color}; font-weight:700; font-size:0.82rem;">{redis_status}</span>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="color:#8BACC8; font-weight:500;">Kafka Streaming</span>
+                <span style="color:#22C55E; font-weight:700; font-size:0.82rem;">Active</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="color:#8BACC8; font-weight:500;">Feature Engine</span>
+                <span style="color:#22C55E; font-weight:700; font-size:0.82rem;">Active</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <span style="color:#8BACC8; font-weight:500;">Customers</span>
                 <span style="color:#FFFFFF; font-weight:700;">{customer_count:,}</span>
             </div>
@@ -280,7 +321,7 @@ def render_sidebar():
                 <span style="color:#FFFFFF; font-weight:600;">3 min</span>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="color:#8BACC8; font-weight:500;">Updated</span>
+                <span style="color:#8BACC8; font-weight:500;">Last Updated</span>
                 <span style="color:#FFFFFF; font-weight:600;">{datetime.now().strftime('%H:%M:%S')}</span>
             </div>
         </div>

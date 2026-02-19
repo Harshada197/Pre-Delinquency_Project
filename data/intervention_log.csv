@@ -1,0 +1,7 @@
+timestamp,customer_id,risk_level,action,message
+2026-02-19 10:52:18,2625,MEDIUM,SMS_SENT,"Dear Customer, we noticed a disruption in your income credits. We can assist with flexible repayment options. Please contact support."
+2026-02-19 10:52:23,2625,MEDIUM,SMS_SENT,"Dear Customer, we noticed a disruption in your income credits. We can assist with flexible repayment options. Please contact support."
+2026-02-19 10:53:33,2625,MEDIUM,SMS_SENT,"Dear Customer, we noticed a disruption in your income credits. We can assist with flexible repayment options. Please contact support."
+2026-02-19 10:55:16,1315,LOW,SMS_SENT,"Dear Customer, we would like to inform you about our support options. Please contact our helpline at 1800-XXX-XXXX for more information."
+2026-02-19 11:45:16,2549,MEDIUM,SMS_SENT,"Dear Customer, we noticed a disruption in your income credits. We can assist with flexible repayment options. Please contact support."
+2026-02-19 11:52:12,2549,MEDIUM,SMS_SENT,"Hi! We noticed a recent change in your account activity. If you’re facing any temporary difficulty, we’re here to help. We can offer flexible repayment options to make things easier for you. Please feel free to contact us anytime — we’d be happy to a"

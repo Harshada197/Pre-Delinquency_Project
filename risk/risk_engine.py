@@ -24,6 +24,11 @@ try:
 except Exception:
     POLICIES = {}
 
+# Use the policy engine for action lookup
+import sys as _sys
+_sys.path.insert(0, os.path.join(BASE_DIR, "risk"))
+from policy_engine import get_recommended_action
+
 print("=" * 60)
 print("  EQUILIBRATE — Risk Monitor v5.0")
 print("  Continuous risk evaluation + distribution reporting")
@@ -97,10 +102,10 @@ def evaluate_customer(customer_key):
 
     score = min(round(score), 10)
 
-    # Classification
-    if score >= 7:
+    # Classification (calibrated for streaming demo)
+    if score >= 5:
         risk_level = "HIGH"
-    elif score >= 4:
+    elif score >= 3:
         risk_level = "MEDIUM"
     else:
         risk_level = "LOW"
@@ -109,31 +114,33 @@ def evaluate_customer(customer_key):
     hardship = "NONE"
 
     if txn_count >= 3:
-        if salary_count == 0 and txn_count >= 8 and persona in ("INCOME_SHOCK", "SILENT_DRAIN"):
+        total_spend = float(data.get("total_spend", 0))
+
+        if salary_count == 0 and txn_count >= 5 and persona in ("INCOME_SHOCK", "SILENT_DRAIN"):
             hardship = "INCOME_SHOCK"
         elif days_since_salary > 30 and atm_7d >= 3:
             hardship = "INCOME_SHOCK"
+        elif essential > 0 and total_spend > 0 and (essential / total_spend) > 0.70 and txn_count >= 5:
+            hardship = "OVER_LEVERAGE"
         elif atm_7d >= 5 and spending_change < -20:
             hardship = "LIQUIDITY_STRESS"
-        elif atm_7d >= 10:
+        elif atm_7d >= 8:
             hardship = "LIQUIDITY_STRESS"
-        elif essential > 0 and discretionary == 0 and txn_count > 8:
+        elif essential > 0 and discretionary == 0 and txn_count > 5:
             hardship = "EXPENSE_COMPRESSION"
-        elif spending_change < -40 and essential > discretionary * 3 and txn_count > 10:
+        elif spending_change < -40 and essential > discretionary * 3 and txn_count > 5:
             hardship = "EXPENSE_COMPRESSION"
-        elif discretionary > 0 and essential > 0 and discretionary > essential * 2.5 and discretionary > 8000:
+        elif discretionary > 0 and essential > 0 and discretionary > essential * 2.5 and discretionary > 3000:
             hardship = "OVERSPENDING"
-        elif persona == "OVERSPENDER" and discretionary > essential * 2 and discretionary > 6000:
+        elif persona == "OVERSPENDER" and discretionary > essential * 2 and discretionary > 2000:
             hardship = "OVERSPENDING"
 
     # If LOW, clear hardship
     if risk_level == "LOW":
         hardship = "NONE"
 
-    # ── Policy lookup ──
-    hardship_key = hardship if hardship in POLICIES else "NONE"
-    policy = POLICIES.get(hardship_key, {}).get(risk_level, {})
-    recommended_action = policy.get("action", "Continue monitoring")
+    # ── Policy lookup via policy_engine ──
+    recommended_action = get_recommended_action(hardship, risk_level)
 
     # ── Write to Redis ──
     r.hset(customer_key, mapping={

@@ -1,22 +1,19 @@
 """
 Page 4 — Intervention Center
-Policy-based communication + audit trail.
-Messages use templates only (no LLM). Staff can review/edit before sending.
-Audio generation via gTTS for IVR/WhatsApp simulation.
-Supports SMS, WhatsApp, Voice channels.
-Feedback loop writes intervention data back to Redis.
+Enter Customer ID → view risk profile → auto-generate template message
+→ edit → send via SMS/WhatsApp/Call/Reviewed → log to data/intervention_log.csv.
+Full message history for each customer shown below.
 """
 import streamlit as st
 import pandas as pd
-import sys, os, json
-import uuid
+import sys, os
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils import (
     load_css, render_header, render_sidebar, render_live_tag,
     fetch_all_customers, get_customer_profile, write_intervention_feedback,
-    generate_policy_message, REFRESH_INTERVAL_MS,
+    REFRESH_INTERVAL_MS,
 )
 from audit_log import log_audit_event, load_audit_log
 
@@ -40,141 +37,213 @@ st.markdown("""
 <div class="eq-card" style="padding:14px; background:#F0F4FF; border-left:4px solid #1F6FEB;">
     <span style="font-weight:700; color:#0f172a;">Notice:</span>
     <span style="color:#334155; font-size:0.9rem;">
-        All messages use pre-approved policy templates. LLM-based personalisation
-        can be added post compliance approval. Staff must review messages before sending.
+        All messages use pre-approved policy templates. Staff must review messages before sending.
     </span>
 </div>
 """, unsafe_allow_html=True)
 
-df = fetch_all_customers()
-if df.empty:
-    st.warning("No customer data available.")
-    st.stop()
 
-# ── Customer Selector ──
+# ════════════════════════════════════════════════════════════
+# TEMPLATE MESSAGE ENGINE (rule-based, NO LLM)
+# ════════════════════════════════════════════════════════════
+
+MESSAGE_TEMPLATES = {
+    "INCOME_SHOCK": (
+        "Dear Customer, we noticed a disruption in your income credits. "
+        "We can assist with flexible repayment options. Please contact support."
+    ),
+    "EXPENSE_COMPRESSION": (
+        "We see increased essential expenses. Our advisors can help restructure your EMI."
+    ),
+    "OVER_LEVERAGE": (
+        "You may have multiple financial obligations. We can consolidate or restructure payments."
+    ),
+    "OVERSPENDING": (
+        "We have observed elevated discretionary spending. Our financial advisors "
+        "can help with budgeting and spending discipline."
+    ),
+    "LIQUIDITY_STRESS": (
+        "We notice signs of liquidity stress in your account. Our team can "
+        "offer short-term relief options. Please reach out to us."
+    ),
+}
+
+DEFAULT_MESSAGE = (
+    "Dear Customer, we would like to inform you about our support options. "
+    "Please contact our helpline at 1800-XXX-XXXX for more information."
+)
+
+
+def get_template_message(hardship_type, customer_id, channel="SMS"):
+    """Generate a message from the template engine based on hardship type."""
+    template = MESSAGE_TEMPLATES.get(hardship_type, DEFAULT_MESSAGE)
+    if channel == "WhatsApp":
+        template = f"[WhatsApp] {template}"
+    elif channel == "Voice":
+        template = f"[Voice/IVR] {template}"
+    return template
+
+
+# ════════════════════════════════════════════════════════════
+# STEP 1: Enter Customer ID
+# ════════════════════════════════════════════════════════════
+
 st.markdown("## Select Customer for Intervention")
 
-if "risk_score" in df.columns:
-    df_sorted = df.sort_values("risk_score", ascending=False)
-else:
-    df_sorted = df
+# Use session state if navigating from Risk Queue
+default_cid = st.session_state.get("selected_customer_id", "")
 
-# Clean selector — show ID, Risk, Hardship but not repeated useless info
-customer_options = []
-for _, row in df_sorted.iterrows():
-    cid = row.get("customer_id", "?")
-    rl = row.get("risk_level", "?")
-    ht = str(row.get("hardship_type", "NONE")).replace("_", " ").title()
-    rs = row.get("risk_score", 0)
-    customer_options.append(f"{cid} | {rl} (Score: {int(rs)}) | {ht}")
+cid_input = st.text_input(
+    "Enter Customer ID",
+    value=default_cid,
+    placeholder="e.g. C001, C042…",
+    key="int_cid_input",
+)
 
-selected = st.selectbox("Customer (ID | Risk | Hardship)", customer_options, key="int_cust_sel")
+selected_id = cid_input.strip() if cid_input else ""
 
-if not selected:
-    st.info("Select a customer to begin.")
+if not selected_id:
+    st.info("Enter a Customer ID above to begin intervention workflow.")
     st.stop()
 
-selected_id = str(selected.split("|")[0].strip())
-profile = get_customer_profile(selected_id)
 
+# ════════════════════════════════════════════════════════════
+# STEP 2: Fetch and Display Profile
+# ════════════════════════════════════════════════════════════
+
+profile = get_customer_profile(selected_id)
 if not profile:
-    st.error(f"Profile not found for customer {selected_id}.")
+    st.error(f"No profile found for customer {selected_id}.")
     st.stop()
 
 risk_level = profile.get("risk_level", "LOW")
-risk_score = int(float(profile.get("risk_score", 0)))
+try:
+    risk_score = int(float(profile.get("risk_score", 0)))
+except (ValueError, TypeError):
+    risk_score = 0
 hardship = profile.get("hardship_type", "NONE")
-persona = profile.get("persona", "UNKNOWN")
-city = profile.get("city", "Unknown")
-employment = str(profile.get("employment_type", "Unknown")).replace("_", " ").title()
+recommended_action = profile.get("recommended_action", "Continue monitoring")
 
 BADGE = {
     "HIGH": {"bg": "#FEE2E2", "text": "#B91C1C", "border": "#E5484D"},
     "MEDIUM": {"bg": "#FEF3C7", "text": "#B45309", "border": "#F59E0B"},
     "LOW": {"bg": "#DCFCE7", "text": "#166534", "border": "#22C55E"},
 }
-style = BADGE.get(risk_level, BADGE["LOW"])
+sty = BADGE.get(risk_level, BADGE["LOW"])
 
+# Display: Risk Level, Hardship Type, Risk Factors, Recommended Action
 st.markdown(f"""
-<div class="eq-card" style="border-left: 5px solid {style['border']}; padding:16px;">
+<div class="eq-card" style="border-left: 5px solid {sty['border']}; padding:16px;">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
         <span style="font-size:1.1rem; font-weight:700; color:#0f172a;">Customer {selected_id}</span>
-        <span style="background:{style['bg']}; color:{style['text']}; font-weight:700;
+        <span style="background:{sty['bg']}; color:{sty['text']}; font-weight:700;
                padding:5px 14px; border-radius:12px; font-size:0.88rem;">
             {risk_level} | Score: {risk_score}/10
         </span>
     </div>
-    <div style="font-size:0.88rem; color:#334155; margin-top:8px;">
-        Hardship: <b>{hardship.replace('_', ' ').title()}</b> |
-        Persona: <b>{persona.replace('_', ' ').title()}</b> |
-        City: <b>{city}</b> |
-        Employment: <b>{employment}</b>
-    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Channel Selection + Message Generation ──
-st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
-st.markdown("## Policy-Based Message")
-
-ref_id = str(uuid.uuid4())[:8].upper()
-
-chan_col, msg_col = st.columns([1, 3])
-with chan_col:
-    channel = st.radio(
-        "Communication Channel",
-        ["SMS", "WhatsApp", "Voice"],
-        key="int_channel",
-    )
-
-message = generate_policy_message(selected_id, hardship, risk_level, ref_id, channel=channel)
-action = profile.get("recommended_action", "Continue monitoring")
-
-with msg_col:
+info1, info2, info3 = st.columns(3)
+with info1:
+    hardship_display = hardship.replace("_", " ").title() if hardship != "NONE" else "None"
     st.markdown(f"""
     <div class="eq-card" style="padding:14px;">
-        <div style="font-weight:700; color:#0f172a; margin-bottom:6px;">Recommended Action</div>
-        <div style="font-size:0.92rem; color:#1F6FEB; font-weight:600; margin-bottom:14px;">{action}</div>
-        <div style="font-weight:700; color:#0f172a; margin-bottom:6px;">Channel: {channel}</div>
+        <div style="font-size:0.78rem; color:#64748b; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">Hardship Type</div>
+        <div style="font-size:1rem; font-weight:700; color:#0f172a; margin-top:4px;">{hardship_display}</div>
     </div>
     """, unsafe_allow_html=True)
 
-# Editable message
+with info2:
+    # Risk factors summary
+    factors = []
+    salary_c = int(float(profile.get("salary_count", 0)))
+    days_s = int(float(profile.get("days_since_salary", -1)))
+    atm_7d = int(float(profile.get("atm_withdrawals_7d", 0)))
+    spendchg = float(profile.get("spending_change_pct", 0))
+
+    if salary_c == 0:
+        factors.append("No salary credit")
+    if days_s > 30:
+        factors.append(f"Salary gap: {days_s}d")
+    if atm_7d >= 5:
+        factors.append(f"ATM: {atm_7d} in 7d")
+    if spendchg < -30:
+        factors.append(f"Spend drop: {abs(spendchg):.0f}%")
+    if not factors:
+        factors.append("Within normal parameters")
+
+    factors_str = "<br>".join(factors)
+    st.markdown(f"""
+    <div class="eq-card" style="padding:14px;">
+        <div style="font-size:0.78rem; color:#64748b; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">Risk Factors</div>
+        <div style="font-size:0.88rem; color:#0f172a; margin-top:4px; line-height:1.6;">{factors_str}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with info3:
+    st.markdown(f"""
+    <div class="eq-card" style="padding:14px;">
+        <div style="font-size:0.78rem; color:#64748b; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">Recommended Action</div>
+        <div style="font-size:0.9rem; font-weight:600; color:#1F6FEB; margin-top:4px; line-height:1.5;">{recommended_action}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════
+# STEP 3: Auto-generate outreach message using TEMPLATE ENGINE
+# ════════════════════════════════════════════════════════════
+
+st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
+st.markdown("## Outreach Message")
+
+channel = st.radio(
+    "Communication Channel",
+    ["SMS", "WhatsApp", "Voice"],
+    horizontal=True,
+    key="int_channel",
+)
+
+# Generate template-based message (NOT LLM)
+auto_message = get_template_message(hardship, selected_id, channel=channel)
+
+# Editable message area
 edited_message = st.text_area(
     "Review and edit before sending:",
-    value=message,
+    value=auto_message,
     height=120,
     key="int_message_area",
 )
 
-# ── Actions ──
+
+# ════════════════════════════════════════════════════════════
+# STEP 4: Action Buttons
+# ════════════════════════════════════════════════════════════
+
 st.markdown("### Intervention Actions")
-a1, a2, a3 = st.columns(3)
+a1, a2, a3, a4 = st.columns(4)
 
 with a1:
-    send_label = f"Send {channel}"
-    if st.button(send_label, key="send_msg_btn", use_container_width=True):
+    if st.button("Send SMS", key="send_sms_btn", use_container_width=True):
         log_audit_event(
             customer_id=selected_id,
-            action_type=f"{channel.upper()}_SENT",
+            action_type="SMS_SENT",
             message=edited_message,
-            officer="System",
-            ref_id=ref_id,
+            risk_level=risk_level,
         )
-        write_intervention_feedback(selected_id, f"{channel.upper()}_SENT", edited_message)
-        st.success(f"{channel} logged for Customer {selected_id}. Ref: {ref_id}")
+        write_intervention_feedback(selected_id, "SMS_SENT", edited_message)
+        st.success(f"SMS logged for Customer {selected_id}.")
 
 with a2:
-    if st.button("Mark as Reviewed", key="mark_reviewed_btn", use_container_width=True):
+    if st.button("Send WhatsApp", key="send_wa_btn", use_container_width=True):
         log_audit_event(
             customer_id=selected_id,
-            action_type="REVIEWED",
-            message="Case reviewed by officer.",
-            officer="System",
-            ref_id=ref_id,
+            action_type="WHATSAPP_SENT",
+            message=edited_message,
+            risk_level=risk_level,
         )
-        write_intervention_feedback(selected_id, "REVIEWED", "Case reviewed")
-        st.success(f"Customer {selected_id} marked as reviewed.")
+        write_intervention_feedback(selected_id, "WHATSAPP_SENT", edited_message)
+        st.success(f"WhatsApp logged for Customer {selected_id}.")
 
 with a3:
     if st.button("Schedule Call", key="schedule_call_btn", use_container_width=True):
@@ -182,135 +251,74 @@ with a3:
             customer_id=selected_id,
             action_type="CALL_SCHEDULED",
             message=f"Outbound call scheduled for customer {selected_id}.",
-            officer="System",
-            ref_id=ref_id,
+            risk_level=risk_level,
         )
         write_intervention_feedback(selected_id, "CALL_SCHEDULED", "Outbound call scheduled")
         st.success(f"Call scheduled for Customer {selected_id}.")
 
-# ── Audio Message (gTTS) ──
-st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
-st.markdown("## Audio Message (IVR / WhatsApp Simulation)")
-
-st.markdown("""
-<div class="eq-card" style="padding:12px; background:#F0F4FF;">
-    <span style="font-size:0.88rem; color:#334155;">
-        Generate a text-to-speech audio file from the policy message.
-        Simulates WhatsApp / IVR outreach without external APIs.
-    </span>
-</div>
-""", unsafe_allow_html=True)
-
-if st.button("Generate Audio", key="gen_audio_btn"):
-    try:
-        from gtts import gTTS
-        import tempfile
-
-        audio_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "audio_messages")
-        os.makedirs(audio_dir, exist_ok=True)
-
-        filename = f"customer_{selected_id}_{ref_id}.mp3"
-        filepath = os.path.join(audio_dir, filename)
-
-        tts = gTTS(text=edited_message, lang="en", slow=False)
-        tts.save(filepath)
-
-        st.success(f"Audio generated: {filename}")
-        st.audio(filepath, format="audio/mp3")
-
+with a4:
+    if st.button("Mark Reviewed", key="mark_reviewed_btn", use_container_width=True):
         log_audit_event(
             customer_id=selected_id,
-            action_type="AUDIO_GENERATED",
-            message=f"Audio message generated: {filename}",
-            officer="System",
-            ref_id=ref_id,
+            action_type="REVIEWED",
+            message="Case reviewed by officer.",
+            risk_level=risk_level,
         )
+        write_intervention_feedback(selected_id, "REVIEWED", "Case reviewed")
+        st.success(f"Customer {selected_id} marked as reviewed.")
 
-    except ImportError:
-        st.error("gTTS not installed. Run: pip install gTTS")
-    except Exception as e:
-        st.error(f"Audio generation failed: {e}")
 
-# ═══════════════════════════════════════════════════════════════
-# AUDIT TRAIL — IMPROVED VISIBILITY
-# ═══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
+# STEP 5: Full Message History for this Customer
+# ════════════════════════════════════════════════════════════
+
 st.markdown('<div class="eq-section-divider"></div>', unsafe_allow_html=True)
-st.markdown("## Audit Trail")
+st.markdown("## Message History")
 
 audit_df = load_audit_log()
-if audit_df is not None and not audit_df.empty:
-    # Per-customer audit entries
-    if "customer_id" in audit_df.columns:
-        cust_audit = audit_df[audit_df["customer_id"].astype(str) == selected_id]
-        if not cust_audit.empty:
-            st.markdown(
-                f'<p style="font-weight:700; color:#0f172a; font-size:0.95rem;">'
-                f'{len(cust_audit)} audit entries for Customer {selected_id}</p>',
-                unsafe_allow_html=True,
-            )
+if audit_df is not None and not audit_df.empty and "customer_id" in audit_df.columns:
+    cust_audit = audit_df[audit_df["customer_id"].astype(str) == selected_id]
+    if not cust_audit.empty:
+        # Sort by timestamp descending
+        if "timestamp" in cust_audit.columns:
+            cust_audit = cust_audit.sort_values("timestamp", ascending=False)
 
-            # Render as styled HTML table for better visibility
-            sort_col = "timestamp" if "timestamp" in cust_audit.columns else None
-            if sort_col:
-                cust_audit = cust_audit.sort_values(sort_col, ascending=False)
-
-            # Styled table with visible borders and dark text
-            table_html = """
-            <div style="overflow-x:auto; margin-bottom:16px;">
-            <table style="width:100%; border-collapse:collapse; font-size:0.88rem; font-family:Inter, sans-serif;">
-                <thead>
-                    <tr style="background:#1F6FEB; color:#FFFFFF;">
-                        <th style="padding:10px 12px; text-align:left; font-weight:700;">Timestamp</th>
-                        <th style="padding:10px 12px; text-align:left; font-weight:700;">Action</th>
-                        <th style="padding:10px 12px; text-align:left; font-weight:700;">Message</th>
-                        <th style="padding:10px 12px; text-align:left; font-weight:700;">Officer</th>
-                        <th style="padding:10px 12px; text-align:left; font-weight:700;">Ref ID</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
-            for i, (_, row) in enumerate(cust_audit.iterrows()):
-                bg = "#F8FAFC" if i % 2 == 0 else "#FFFFFF"
-                ts = row.get("timestamp", "")
-                act = row.get("action_type", "")
-                msg = str(row.get("message", ""))[:120]
-                off = row.get("officer", "")
-                rid = row.get("ref_id", "")
-
-                # Color-code action types
-                act_color = "#1F6FEB"
-                if "SENT" in str(act).upper():
-                    act_color = "#22C55E"
-                elif "REVIEWED" in str(act).upper():
-                    act_color = "#F59E0B"
-                elif "SCHEDULED" in str(act).upper():
-                    act_color = "#6366F1"
-
-                table_html += f"""
-                    <tr style="background:{bg}; border-bottom:1px solid #E2E8F0;">
-                        <td style="padding:8px 12px; color:#0f172a; white-space:nowrap;">{ts}</td>
-                        <td style="padding:8px 12px; color:{act_color}; font-weight:700;">{act}</td>
-                        <td style="padding:8px 12px; color:#1e293b; max-width:300px;">{msg}</td>
-                        <td style="padding:8px 12px; color:#334155;">{off}</td>
-                        <td style="padding:8px 12px; color:#64748b; font-family:monospace; font-size:0.82rem;">{rid}</td>
-                    </tr>
-                """
-            table_html += "</tbody></table></div>"
-            st.markdown(table_html, unsafe_allow_html=True)
-        else:
-            st.info(f"No audit entries for Customer {selected_id}.")
-
-    # Full log in expander
-    with st.expander("View Full Audit Log"):
-        if "timestamp" in audit_df.columns:
-            audit_df = audit_df.sort_values("timestamp", ascending=False)
-
-        st.dataframe(
-            audit_df,
-            use_container_width=True,
-            height=400,
-            hide_index=True,
+        st.markdown(
+            f'<p style="font-weight:700; color:#0f172a; font-size:0.95rem;">'
+            f'{len(cust_audit)} entries for Customer {selected_id}</p>',
+            unsafe_allow_html=True,
         )
-        st.caption(f"Total entries: {len(audit_df):,}")
+
+        # Styled HTML table — no leading whitespace to avoid markdown code-block parsing
+        table_html = '<div class="eq-table-container" style="max-height:400px;">'
+        table_html += '<table class="eq-table">'
+        table_html += '<thead><tr>'
+        table_html += '<th>Timestamp</th><th>Risk Level</th><th>Action</th><th>Message</th>'
+        table_html += '</tr></thead><tbody>'
+
+        for _, row in cust_audit.iterrows():
+            ts = row.get("timestamp", "")
+            rl = row.get("risk_level", "")
+            act = row.get("action", "")
+            msg = str(row.get("message", ""))[:150]
+
+            # Color-code action types
+            act_color = "#1F6FEB"
+            if "SENT" in str(act).upper():
+                act_color = "#22C55E"
+            elif "REVIEWED" in str(act).upper():
+                act_color = "#F59E0B"
+            elif "SCHEDULED" in str(act).upper():
+                act_color = "#6366F1"
+
+            table_html += f'<tr><td style="white-space:nowrap;">{ts}</td>'
+            table_html += f'<td>{rl}</td>'
+            table_html += f'<td style="color:{act_color} !important; font-weight:700;">{act}</td>'
+            table_html += f'<td style="max-width:350px;">{msg}</td></tr>'
+
+        table_html += '</tbody></table></div>'
+        st.markdown(table_html, unsafe_allow_html=True)
+    else:
+        st.info(f"No intervention history for Customer {selected_id}.")
 else:
-    st.info("No audit entries recorded yet. Send an intervention to create the first entry.")
+    st.info("No intervention entries recorded yet. Send an intervention to create the first entry.")

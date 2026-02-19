@@ -771,3 +771,103 @@ hr {
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.15);
 }
+
+/* ── Sidebar Nav — Rename "app" to "Home" ── */
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child a span {
+    visibility: hidden;
+    position: relative;
+}
+
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] li:first-child a span::after {
+    content: "Home";
+    visibility: visible;
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: #FFFFFF !important;
+    font-weight: 500;
+}
+
+/* ── Styled HTML Tables ── */
+.eq-table-container {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 600px;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+    margin-bottom: 14px;
+}
+
+.eq-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+.eq-table thead tr {
+    background: #0E2A5A;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.eq-table thead th {
+    padding: 12px 14px;
+    text-align: left;
+    font-weight: 700;
+    color: #FFFFFF !important;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #1F6FEB;
+}
+
+.eq-table tbody tr {
+    border-bottom: 1px solid #E2E8F0;
+    transition: background 0.15s ease;
+}
+
+.eq-table tbody tr:nth-child(even) {
+    background: #F8FAFC;
+}
+
+.eq-table tbody tr:nth-child(odd) {
+    background: #FFFFFF;
+}
+
+.eq-table tbody tr:hover {
+    background: #EFF6FF !important;
+}
+
+.eq-table tbody td {
+    padding: 10px 14px;
+    color: #1A1A2E !important;
+    font-size: 0.86rem;
+    vertical-align: middle;
+}
+
+/* Risk pill badges */
+.eq-pill {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    display: inline-block;
+}
+
+.eq-pill-high {
+    background: #FEE2E2;
+    color: #B91C1C !important;
+}
+
+.eq-pill-medium {
+    background: #FEF3C7;
+    color: #B45309 !important;
+}
+
+.eq-pill-low {
+    background: #DCFCE7;
+    color: #166534 !important;
+}
